@@ -35,6 +35,13 @@ class OracleExamples(unittest.TestCase):
                                    for basis in combinations(possible_sets, size))
                     self.assertEqual(solve_target(instance) != {"no_solution": True}, expected)
 
+    def test_alternate_basis_witness(self):
+        instance = {"universe": 3, "family": [[0, 1], [1, 2], [0, 2]], "K": 3}
+        first = solve_target(instance)
+        second = solve_target(instance, exclude=first)
+        self.assertNotEqual(first, second)
+        self.assertTrue(valid_target(instance, second))
+
 
 if __name__ == "__main__":
     unittest.main()

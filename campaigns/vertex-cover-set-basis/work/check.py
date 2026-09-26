@@ -7,9 +7,7 @@ from pathlib import Path
 import random
 import subprocess
 import sys
-
-from z3 import And, Bool, Or, Solver, is_true, sat, unsat
-
+import tempfile
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[2]
@@ -36,31 +34,53 @@ def solve_source(x):
 
 
 def target_solver(x):
-    universe, family, count = x["universe"], x["family"], x["K"]
-    solver = Solver()
-    basis = [[Bool(f"b_{j}_{u}") for u in range(universe)] for j in range(count)]
-    use = [[Bool(f"use_{i}_{j}") for j in range(count)] for i in range(len(family))]
-    for i, member in enumerate(family):
+    family, count = x["family"], x["K"]
+    members = [frozenset(member) for member in family]
+    subsets = {frozenset(part) for member in family for size in range(1, len(member) + 1)
+               for part in combinations(member, size)}
+    candidates = sorted({tuple(sorted(frozenset.intersection(*(member for member in members if part <= member))))
+                         for part in subsets})
+    constraints = []
+    for member in family:
         elements = set(member)
-        for j in range(count):
-            for u in range(universe):
-                if u not in elements:
-                    solver.add(Or(~use[i][j], ~basis[j][u]))
         for u in elements:
-            solver.add(Or(*[And(use[i][j], basis[j][u]) for j in range(count)]))
-    return solver, basis, use
+            constraints.append([j for j, candidate in enumerate(candidates)
+                                if u in candidate and set(candidate) <= elements])
+    return candidates, constraints, count
 
 
-def solve_target(x):
-    solver, basis, _ = target_solver(x)
-    result = solver.check()
-    if result == unsat:
+def solve_target(x, exclude=None):
+    candidates, constraints, count = target_solver(x)
+    if any(not clause for clause in constraints):
         return NO
-    if result != sat:
-        raise RuntimeError(f"Target oracle inconclusive: {result}")
-    model = solver.model()
-    sets = [[u for u, bit in enumerate(row) if is_true(model.eval(bit))] for row in basis]
-    return {"basis": [members for members in sets if members]}
+    if not candidates:
+        return None if exclude is not None else {"basis": []}
+    variables = [f"x{j}" for j in range(len(candidates))]
+    lp = "Minimize\n obj: 0\nSubject To\n"
+    lp += "".join(f" cover{j}: {' + '.join(variables[i] for i in clause)} >= 1\n"
+                  for j, clause in enumerate(constraints))
+    lp += f" budget: {' + '.join(variables)} <= {count}\nBinary\n {' '.join(variables)}\nEnd\n"
+    if exclude is not None:
+        selected = {tuple(b) for b in exclude["basis"]}
+        signs = [f"- {variables[j]}" if candidate in selected else f"+ {variables[j]}"
+                 for j, candidate in enumerate(candidates)]
+        lp = lp.replace("Binary\n", f" alternate: {' '.join(signs)} >= {1 - len(selected)}\nBinary\n")
+    with tempfile.TemporaryDirectory() as directory:
+        model_path = Path(directory) / "basis.lp"
+        solution_path = Path(directory) / "basis.sol"
+        model_path.write_text(lp)
+        result = subprocess.run(["scip", "-q", "-c", f"read {model_path}", "-c", "optimize",
+                                 "-c", f"write solution {solution_path}", "-c", "quit"],
+                                text=True, capture_output=True)
+        if result.returncode:
+            raise RuntimeError(f"SCIP failed: {result.stderr}")
+        lines = solution_path.read_text().splitlines()
+    if lines[0] == "solution status: infeasible":
+        return None if exclude is not None else NO
+    if lines[0] != "solution status: optimal solution found":
+        raise RuntimeError(f"Target oracle inconclusive: {lines[0]}: {result.stdout} {result.stderr}")
+    positive = {line.split()[0] for line in lines[2:] if line.split()[1] == "1"}
+    return {"basis": [list(candidate) for j, candidate in enumerate(candidates) if f"x{j}" in positive]}
 
 
 def valid_target(x, answer):
@@ -130,7 +150,8 @@ def self_test():
 def run_candidate(path):
     cases = json.loads((HERE / "cases.json").read_text())
     outputs = 0
-    for case in cases:
+    alternate_attempts = alternate_outputs = 0
+    for index, case in enumerate(cases, 1):
         x = case["source"]
         target = json.loads(subprocess.run([sys.executable, str(path)], input=json.dumps(x), text=True,
                                            capture_output=True, check=True).stdout)
@@ -141,7 +162,19 @@ def run_candidate(path):
                               capture_output=True, check=True).stdout)
         assert valid_source(x, recovered), (x, target, answer, recovered)
         outputs += 1
-    print(f"Candidate passed: {len(cases)} source instances, {outputs} target outputs")
+        if answer != NO and len(x["edges"]) <= 2 and alternate_attempts < 5:
+            alternate_attempts += 1
+            other = solve_target(target, exclude=answer)
+            if other is not None:
+                assert other != answer and valid_target(target, other)
+                recovered = json.loads(subprocess.run([sys.executable, str(path), "--extract"],
+                                      input=json.dumps({"source": x, "target_solution": other}), text=True,
+                                      capture_output=True, check=True).stdout)
+                assert valid_source(x, recovered), (x, target, other, recovered)
+                alternate_outputs += 1
+        if index % 10 == 0:
+            print(f"Checked {index}/{len(cases)}", file=sys.stderr, flush=True)
+    print(f"Candidate passed: {len(cases)} source instances, {outputs} primary outputs, {alternate_outputs} alternate outputs")
 
 
 if __name__ == "__main__":
