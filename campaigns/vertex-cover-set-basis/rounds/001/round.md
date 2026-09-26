@@ -12,6 +12,8 @@ I reconstructed the gadget in [algorithm.py](../../work/algorithm.py) and derive
 
 The mechanism is reconstructed, not novel. Its concrete contribution here is an executable search reduction with decoding from arbitrary target witnesses and a direct proof that does not call a normal-basis conversion. Significance is reproducibility and clarification of the upstream issue, not a new hardness classification. Review 001 accepted the mathematical proof but found Python's 4300-digit JSON integer limit. A failing 4301-digit regression was added before the CLI repair; the forward map, extraction, 112-case loop, and separate verifier all pass after disabling that cap. This is a same-strategy repair in round 001.
 
+Follow-up [review 002](../../reviews/002/review.md) advanced the repair and reused the unaffected proof audit. Its independent long-integer check passed on a one-edge graph with 4301-digit labels. The [four-page manuscript](../../work/manuscript.pdf) was compiled with Typst 0.15.1 and visually inspected page by page. No mathematical claim changed after review.
+
 ## Next action
 
-Request focused fresh-context follow-up review of the executable repair, reusing unaffected review evidence. If it advances, write and inspect a Typst manuscript. Experience extraction: none yet; this is a known gadget and the direct counting lemma is fully campaign-specific.
+Expert review of the completed reconstruction. Round 001 closes with 112 prepared instances, 113 prepared target outputs, seven separate instances and nine separate target outputs; one independent revise review, one independent advance review, and no known correctness mismatch. The original Stockmeyer and Jiang–Ravikumar proofs remain uninspected. Experience extraction (2026-09-26): none; the five-set gadget is published and the direct count is specific to this campaign. Distinct entries created, updated and pending: 0, 0, 0.
