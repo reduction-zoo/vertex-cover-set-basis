@@ -67,6 +67,7 @@ def extract(source, target_solution):
 
 
 if __name__ == "__main__":
+    sys.set_int_max_str_digits(0)
     try:
         payload = json.load(sys.stdin)
         result = extract(payload["source"], payload["target_solution"]) if sys.argv[1:] == ["--extract"] else construct(payload)
