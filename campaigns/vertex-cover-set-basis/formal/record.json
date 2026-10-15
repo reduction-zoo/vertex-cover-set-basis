@@ -1,0 +1,7 @@
+{
+  "id": "Q056",
+  "source_definition": "Given a finite simple undirected graph and a nonnegative integer k, return a vertex set of size at most k meeting every edge. Return NO-SOLUTION exactly when no such witness exists. Graphs, families and strings are explicit; numerical parameters use binary encodings.",
+  "target_definition": "Given an explicit family C of subsets of a finite universe and K, return at most K basis subsets such that every member of C is the union of some of the basis subsets. A valid output is a witness satisfying these conditions, or NO-SOLUTION exactly when none exists.",
+  "required_result": "Construct deterministic polynomial-time maps F and G. F must produce a legal target instance, and G(x,y) must return a valid source output for every valid target output y, including NO-SOLUTION. A complete rule may reconstruct a published construction or give a new one; it must specify every gadget, numerical parameter and decoding step.",
+  "equation": ""
+}
